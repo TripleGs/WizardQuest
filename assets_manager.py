@@ -2,6 +2,9 @@ import pygame
 import os
 import random
 import math
+import wave
+import array
+import struct
 
 class AssetsManager:
     def __init__(self):
@@ -32,6 +35,9 @@ class AssetsManager:
         
         # Create placeholder images if they don't exist
         self.create_placeholder_images()
+        
+        # Create placeholder music if it doesn't exist
+        self.create_placeholder_music()
         
         # Initialize pygame font
         pygame.font.init()
@@ -177,6 +183,65 @@ class AssetsManager:
             color.append(alpha if radius > 10 else alpha // 2)
             pygame.draw.circle(staff, color, (15, 15), radius)
         pygame.image.save(staff, os.path.join(self.images_dir, 'wizard_staff.png'))
+    
+    def create_placeholder_music(self):
+        """Create a simple placeholder background music file"""
+        # Check if background music already exists
+        background_music_path = os.path.join(self.music_dir, 'background.wav')
+        if os.path.exists(background_music_path):
+            return
+        
+        # Create a simple WAV file with a basic melody
+        try:
+            # Initialize parameters
+            sample_rate = 44100  # CD quality
+            duration = 10.0      # 10 seconds loop
+            
+            # Create the WAV file
+            with wave.open(background_music_path, 'w') as wav_file:
+                wav_file.setparams((1, 2, sample_rate, int(sample_rate * duration), 'NONE', 'not compressed'))
+                
+                # Create the audio data
+                amplitude = 32767  # Max amplitude for 16-bit audio
+                data = array.array('h')
+                
+                # Generate a simple melody with a few notes
+                # C major scale frequencies: C(261.63), D(293.66), E(329.63), F(349.23), G(392.00), A(440.00), B(493.88)
+                notes = [261.63, 329.63, 392.00, 440.00, 392.00, 329.63, 261.63, 0,  # Simple ascending/descending pattern
+                         293.66, 349.23, 440.00, 493.88, 440.00, 349.23, 293.66, 0]  # Another pattern
+                
+                note_duration = duration / len(notes)  # Each note's duration
+                
+                for note_freq in notes:
+                    # Generate samples for each note
+                    note_samples = int(note_duration * sample_rate)
+                    
+                    # If frequency is 0, generate silence
+                    if note_freq == 0:
+                        for i in range(note_samples):
+                            data.append(0)
+                    else:
+                        # Generate a sine wave for the note
+                        for i in range(note_samples):
+                            # Apply an envelope to avoid pops/clicks
+                            if i < 1000:  # fade in
+                                env = i / 1000.0
+                            elif i > note_samples - 1000:  # fade out
+                                env = (note_samples - i) / 1000.0
+                            else:
+                                env = 1.0
+                                
+                            # Create the sample
+                            t = float(i) / sample_rate  # time in seconds
+                            sample = int(amplitude * env * math.sin(2 * math.pi * note_freq * t))
+                            data.append(sample)
+                
+                # Write the audio data
+                wav_file.writeframes(data.tobytes())
+            
+            print("Created placeholder background music")
+        except Exception as e:
+            print(f"Error creating placeholder music: {e}")
     
     def get_font(self, name):
         return self.fonts.get(name, self.fonts['text'])
