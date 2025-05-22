@@ -4,7 +4,6 @@ import random
 import math
 from settings import Settings
 from player import Player
-from enemy import Enemy
 from menu import Menu
 from assets_manager import AssetsManager
 from customization import CustomizationScreen
@@ -36,9 +35,6 @@ class Game:
         # Platform elements
         self.platforms = []
         self.create_platforms()
-        
-        # Enemy elements
-        self.enemies = []
 
     def create_stars(self):
         for _ in range(100):
@@ -92,29 +88,6 @@ class Game:
             'texture': 'wood'
         })
     
-    def create_enemies(self):
-        # Add enemies at strategic positions
-        # Enemy on left platform
-        self.enemies.append(Enemy(
-            200, 380, self.assets, 
-            patrol_min=120, patrol_max=330, 
-            speed=1, direction=1
-        ))
-        
-        # Enemy on right platform
-        self.enemies.append(Enemy(
-            550, 380, self.assets, 
-            patrol_min=470, patrol_max=680, 
-            speed=1, direction=-1
-        ))
-        
-        # Enemy on middle platform
-        self.enemies.append(Enemy(
-            350, 260, self.assets, 
-            patrol_min=310, patrol_max=490, 
-            speed=1.5, direction=1
-        ))
-
     def run(self):
         while True:
             if not self.game_active:
@@ -137,8 +110,6 @@ class Game:
                     self.game_active = False
                 elif event.key == self.settings.spell_hotkey:
                     self.player.cast_spell()
-                elif event.key == pygame.K_1:  # 1 key for directed attack
-                    self.player.cast_attack(self.enemies)
                 elif event.key == pygame.K_p:  # P for pause/settings
                     self.settings.show_settings = True
 
@@ -151,19 +122,6 @@ class Game:
         
         # Update particles
         self.assets.update_particles()
-        
-        # Update enemies
-        for enemy in self.enemies[:]:
-            enemy.update()
-            
-            # Check for collision with player
-            if (enemy.active and self.player.rect.colliderect(enemy.rect) and 
-                not self.player.invulnerable):
-                self.player.take_damage()
-                # Check if player is dead
-                if self.player.health <= 0:
-                    self.game_active = False
-                    return
         
         # Update player
         self.player.update(self.platforms)
@@ -202,11 +160,6 @@ class Game:
                     y = platform['rect'].top + random.randint(2, platform['rect'].height - 2)
                     size = random.randint(2, 4)
                     pygame.draw.circle(self.screen, self.assets.get_color('wood_light'), (x, y), size)
-        
-        # Draw enemies
-        for enemy in self.enemies:
-            if enemy.active:
-                enemy.draw(self.screen)
         
         # Draw player
         self.player.draw(self.screen)
@@ -250,8 +203,6 @@ class Game:
     def start_game(self):
         self.game_active = True
         self.player = Player(self)
-        self.enemies = []
-        self.create_enemies()
 
 if __name__ == '__main__':
     game = Game()

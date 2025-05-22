@@ -42,11 +42,6 @@ class Player:
         self.spell_cooldown_time = 20  # Faster without staff
         self.spells = []
         
-        # Attack properties
-        self.attack_cooldown = 0
-        self.attack_cooldown_time = 30
-        self.attacks = []
-        
         # Load customization
         self.customization = self.settings.wizard_customization
         
@@ -362,10 +357,6 @@ class Player:
         # Update spell cooldown
         if self.spell_cooldown > 0:
             self.spell_cooldown -= 1
-            
-        # Update attack cooldown
-        if self.attack_cooldown > 0:
-            self.attack_cooldown -= 1
         
         # Update invulnerability
         if self.invulnerable:
@@ -378,162 +369,16 @@ class Player:
         if self.damage_flash > 0:
             self.damage_flash -= 1
         
-        # Update attacks
-        for attack in self.attacks[:]:
-            # Check if attack has homing capability
-            if attack.get('homing', False) and 'target' in attack:
-                target = attack['target']
-                
-                # Only home in if target is still active
-                if target.active and target.death_timer == 0:
-                    # Get target's current position
-                    target_x = target.x + target.width//2
-                    target_y = target.y + target.height//2
-                    
-                    # Calculate angle to target
-                    attack_center_x = attack['x'] + attack['width']//2
-                    attack_center_y = attack['y'] + attack['height']//2
-                    dx = target_x - attack_center_x
-                    dy = target_y - attack_center_y
-                    angle = math.atan2(dy, dx)
-                    
-                    # Calculate distance to target for debugging
-                    distance = math.sqrt(dx*dx + dy*dy)
-                    
-                    # Update attack angle with some lerping for smoother turning
-                    current_angle = attack.get('angle', angle)
-                    # Adjust angle towards target (homing effect)
-                    angle_diff = angle - current_angle
-                    # Normalize angle difference to -pi to pi
-                    while angle_diff > math.pi:
-                        angle_diff -= 2 * math.pi
-                    while angle_diff < -math.pi:
-                        angle_diff += 2 * math.pi
-                    # Apply gradual turning - increase turning speed for better tracking
-                    new_angle = current_angle + angle_diff * 0.3  # Increased turning speed
-                    attack['angle'] = new_angle
-                    
-                    # Print tracking info for debugging
-                    print(f"Tracking: dist={distance:.1f}, angle={math.degrees(new_angle):.1f}°")
-                    
-                    # Move attack based on angle
-                    move_speed = attack['speed']
-                    attack['x'] += math.cos(new_angle) * move_speed
-                    attack['y'] += math.sin(new_angle) * move_speed
-                    
-                    # Update attack rect after moving for collision detection
-                    attack_rect = pygame.Rect(attack['x'], attack['y'], attack['width'], attack['height'])
-                    attack['rect'] = attack_rect
-                    
-                    # Check for collision with target
-                    if attack_rect.colliderect(target.rect):
-                        # Kill the enemy
-                        target.kill()
-                        print(f"Enemy hit and killed!")
-                        
-                        # Create explosion at enemy position
-                        if 'color' in attack and isinstance(attack['color'], tuple) and len(attack['color']) >= 3:
-                            explosion_color = attack['color'][:3]
-                        else:
-                            explosion_color = (150, 100, 250)
-                            
-                        self.assets.create_particles(
-                            target.rect.centerx,
-                            target.rect.centery,
-                            explosion_color,
-                            count=50,
-                            speed=6,
-                            size=5,
-                            lifetime=30
-                        )
-                        
-                        # Remove the attack
-                        self.attacks.remove(attack)
-                        continue
-                else:
-                    # Target is no longer active, convert to standard attack
-                    print("Target lost - converting to standard attack")
-                    attack['homing'] = False
-                    
-                    # Set direction based on last known angle
-                    if 'angle' in attack:
-                        angle_degrees = math.degrees(attack['angle']) % 360
-                        if angle_degrees < 90 or angle_degrees > 270:
-                            attack['direction'] = 'right'
-                        else:
-                            attack['direction'] = 'left'
-                    
-                    # Move in that direction
-                    attack['x'] += attack['speed'] * (-1 if attack['direction'] == 'left' else 1)
-            else:
-                # Standard non-homing movement
-                attack['x'] += attack['speed'] * (-1 if attack['direction'] == 'left' else 1)
-            
-            attack['lifetime'] -= 1
-            
-            # Ensure attack color is valid
-            if 'color' in attack and isinstance(attack['color'], tuple) and len(attack['color']) >= 3:
-                attack_color = attack['color'][:3]  # Use only RGB components
-            else:
-                attack_color = (150, 100, 250)  # Default purple if invalid
-            
-            # Create trail particles
-            if random.random() < 0.3:
-                self.assets.create_particles(
-                    attack['x'] + attack['width']//2, 
-                    attack['y'] + attack['height']//2, 
-                    attack_color, 
-                    count=3,
-                    speed=1, 
-                    size=2, 
-                    lifetime=10
-                )
-            
-            # Remove if out of screen or lifetime ended
-            if (attack['x'] < -40 or 
-                attack['x'] > self.settings.window_width + 40 or 
-                attack['y'] < -40 or
-                attack['y'] > self.settings.window_height + 40 or
-                attack['lifetime'] <= 0):
-                self.attacks.remove(attack)
-                
-                # Create explosion particles when attack expires
-                self.assets.create_particles(
-                    attack['x'] + attack['width']//2, 
-                    attack['y'] + attack['height']//2, 
-                    attack_color, 
-                    count=15,
-                    speed=3,
-                    size=3, 
-                    lifetime=20
-                )
-        
         # Update spells
         for spell in self.spells[:]:
-            spell['x'] += spell['speed'] * (-1 if spell['direction'] == 'left' else 1)
-            spell['y'] += math.sin(spell['angle']) * 2
-            spell['angle'] += 0.1
-            spell['lifetime'] -= 1
-            
-            # Ensure spell color is valid
-            if 'color' in spell and isinstance(spell['color'], tuple) and len(spell['color']) >= 3:
-                spell_color = spell['color'][:3]  # Use only RGB components
+            # Move spell based on direction
+            if spell['direction'] == 'right':
+                spell['x'] += spell['speed']
             else:
-                spell_color = (150, 100, 250)  # Default purple if invalid
+                spell['x'] -= spell['speed']
             
-            spell_power = spell.get('power', 1.0)
-            
-            # Create trail particles
-            if random.random() < 0.3:
-                self.assets.create_particles(
-                    spell['x'] + 10, 
-                    spell['y'] + 10, 
-                    spell_color, 
-                    count=int(2 * spell_power),  # More particles for powerful spells
-                    speed=1, 
-                    size=2, 
-                    lifetime=10
-                )
+            # Update lifetime
+            spell['lifetime'] -= 1
             
             # Remove if out of screen or lifetime ended
             if (spell['x'] < -40 or 
@@ -542,189 +387,60 @@ class Player:
                 self.spells.remove(spell)
                 
                 # Create explosion particles when spell expires
+                if 'color' in spell and isinstance(spell['color'], tuple) and len(spell['color']) >= 3:
+                    spell_color = spell['color'][:3]
+                else:
+                    spell_color = (150, 100, 250)
+                    
                 self.assets.create_particles(
-                    spell['x'] + 10, 
-                    spell['y'] + 10, 
+                    spell['x'], 
+                    spell['y'], 
                     spell_color, 
-                    count=int(20 * spell_power),  # More explosion for powerful spells
-                    speed=4 * spell_power,  # Faster particles for powerful spells
-                    size=3, 
+                    count=20, 
+                    speed=3, 
                     lifetime=20
                 )
-    
-    def cast_spell(self):
-        if self.spell_cooldown <= 0:
-            # Get magic color and power from customization, ensuring valid color format
-            if 'magic_color' in self.customization and isinstance(self.customization['magic_color'], tuple):
-                magic_color = self.customization['magic_color'][:3]  # Ensure only RGB components
-            else:
-                # Default blue magic if no valid color is found
-                magic_color = (100, 150, 250)
-            
-            # Get magic power or use default
-            magic_power = self.customization.get('magic_power', 1.0)
-            
-            # Create magic particles from hands
-            hand_x = self.x + (self.width if self.facing_right else 0)
-            hand_y = self.y + 20
-            
-            # Create magical particles
-            particle_count = int(20 * magic_power)
-            particle_speed = 4 * magic_power
-            particle_size = 3 * magic_power
-            
-            self.assets.create_particles(
-                hand_x, 
-                hand_y, 
-                magic_color, 
-                count=particle_count, 
-                speed=particle_speed, 
-                size=particle_size, 
-                lifetime=20
-            )
-            
-            # Create a spell with magical effect
-            magic_effect = self.assets.get_image('magic_effect')
-            
-            spell = {
-                'x': hand_x,
-                'y': hand_y,
-                'speed': 10 * magic_power,  # Faster without staff
-                'direction': 'left' if not self.facing_right else 'right',
-                'angle': 0,
-                'lifetime': 70,
-                'image': magic_effect,
-                'color': magic_color,
-                'power': magic_power
-            }
-            self.spells.append(spell)
-            self.spell_cooldown = self.spell_cooldown_time
     
     def draw(self, surface):
         # Draw spells
         for spell in self.spells:
-            if spell['image']:
-                # Scale the effect based on power
-                scale_factor = spell.get('power', 1.0)
-                scaled_image = pygame.transform.scale(
-                    spell['image'], 
-                    (int(spell['image'].get_width() * scale_factor), 
-                    int(spell['image'].get_height() * scale_factor))
-                )
-                surface.blit(scaled_image, (spell['x'], spell['y']))
+            # Calculate spell position
+            spell_x = spell['x']
+            spell_y = spell['y']
+            
+            # Create magical effect
+            if 'image' in spell and spell['image']:
+                # Scale effect based on power
+                scale = 1.0
+                if 'power' in spell:
+                    scale = max(0.5, min(2.0, spell['power']))
+                
+                orig_image = spell['image']
+                width = int(orig_image.get_width() * scale)
+                height = int(orig_image.get_height() * scale)
+                
+                image = pygame.transform.scale(orig_image, (width, height))
+                
+                # Flip based on direction
+                if spell['direction'] == 'left':
+                    image = pygame.transform.flip(image, True, False)
+                
+                # Draw at spell position
+                surface.blit(image, (spell_x - width // 2, spell_y - height // 2))
             else:
-                # Ensure we have a valid color for the spell
+                # Fallback to simple magical effect
+                # Get customized magic color
                 if 'color' in spell and isinstance(spell['color'], tuple) and len(spell['color']) >= 3:
-                    spell_color = spell['color'][:3]  # Use only RGB components
+                    magic_color = spell['color'][:3]
                 else:
-                    # Default to purple if no valid color
-                    spell_color = (150, 100, 250)
-                    
-                # Scale size based on power
-                size = int(20 * spell.get('power', 1.0))
+                    magic_color = (150, 100, 250)
                 
-                pygame.draw.rect(surface, spell_color, 
-                              pygame.Rect(spell['x'], spell['y'], size, size))
-                pygame.draw.rect(surface, (100, 50, 200), 
-                              pygame.Rect(spell['x'], spell['y'], size, size), 2)
-        
-        # Draw attacks (directed bolts)
-        for attack in self.attacks:
-            # Ensure we have a valid color
-            if 'color' in attack and isinstance(attack['color'], tuple) and len(attack['color']) >= 3:
-                attack_color = attack['color'][:3]  # Use only RGB components
-            else:
-                # Default to blue if no valid color
-                attack_color = (100, 150, 250)
-            
-            # Create attack bolt shape
-            bolt_rect = pygame.Rect(attack['x'], attack['y'], attack['width'], attack['height'])
-            
-            # Check if this is a homing attack
-            if attack.get('homing', False) and 'angle' in attack:
-                # For homing attacks, rotate the bolt to match its trajectory
-                angle_degrees = math.degrees(attack['angle'])
-                
-                # Create a surface for the rotated bolt
-                bolt_surf = pygame.Surface((attack['width'], attack['height']), pygame.SRCALPHA)
-                
-                # Draw the bolt on the surface
-                pygame.draw.rect(bolt_surf, attack_color, 
-                              pygame.Rect(0, 0, attack['width'], attack['height']), 
-                              border_radius=5)
-                pygame.draw.rect(bolt_surf, (255, 255, 255), 
-                              pygame.Rect(0, 0, attack['width'], attack['height']), 
-                              2, border_radius=5)
-                
-                # Add directional effect at front of bolt (pointy end in direction of travel)
-                points = [
-                    (attack['width'] - 5, attack['height'] // 2),  # tip
-                    (attack['width'] - 15, attack['height'] // 4),  # top back
-                    (attack['width'] - 15, 3 * attack['height'] // 4)  # bottom back
-                ]
-                pygame.draw.polygon(bolt_surf, attack_color, points)
-                
-                # Rotate the bolt to match its trajectory
-                rotated_bolt = pygame.transform.rotate(bolt_surf, -angle_degrees)
-                
-                # Get the center of the bolt for positioning
-                bolt_center = bolt_rect.center
-                rotated_rect = rotated_bolt.get_rect(center=bolt_center)
-                
-                # Draw the rotated bolt
-                surface.blit(rotated_bolt, rotated_rect.topleft)
-                
-                # Update rect for collision detection
-                attack['rect'] = rotated_rect
-                
-                # Add glowing trail effect
-                trail_surf = pygame.Surface((20, 20), pygame.SRCALPHA)
-                for i in range(3):
-                    radius = 8 - i*2
-                    alpha = 150 - i*40
-                    pygame.draw.circle(trail_surf, (*attack_color, alpha), (10, 10), radius)
-                
-                # Position the trail based on angle
-                trail_x = attack['x'] + attack['width']//2 - math.cos(attack['angle']) * attack['width']/2
-                trail_y = attack['y'] + attack['height']//2 - math.sin(attack['angle']) * attack['height']/2
-                surface.blit(trail_surf, (trail_x-10, trail_y-10))
-                
-            else:
-                # For standard non-homing attacks
-                # Draw main bolt with glow effect
-                pygame.draw.rect(surface, attack_color, bolt_rect, border_radius=5)
-                pygame.draw.rect(surface, (255, 255, 255), bolt_rect, 2, border_radius=5)
-                
-                # Add directional effect (pointed end)
-                if attack['direction'] == 'right':
-                    points = [
-                        (bolt_rect.right, bolt_rect.centery),
-                        (bolt_rect.right - 10, bolt_rect.top),
-                        (bolt_rect.right - 10, bolt_rect.bottom)
-                    ]
-                else:
-                    points = [
-                        (bolt_rect.left, bolt_rect.centery),
-                        (bolt_rect.left + 10, bolt_rect.top),
-                        (bolt_rect.left + 10, bolt_rect.bottom)
-                    ]
-                pygame.draw.polygon(surface, attack_color, points)
-                
-                # Update rect for collision detection
-                attack['rect'] = bolt_rect
-                
-                # Add a glowing trail effect
-                trail_surf = pygame.Surface((20, 20), pygame.SRCALPHA)
-                for i in range(3):
-                    radius = 8 - i*2
-                    alpha = 150 - i*40
-                    pygame.draw.circle(trail_surf, (*attack_color, alpha), (10, 10), radius)
-                
-                # Position the trail based on direction
-                offset = 10 if attack['direction'] == 'right' else -10
-                trail_x = attack['x'] + (0 if attack['direction'] == 'left' else attack['width']) - offset
-                trail_y = attack['y'] + attack['height']//2
-                surface.blit(trail_surf, (trail_x-10, trail_y-10))
+                # Create a trail of particles
+                for i in range(5):
+                    offset_x = -i * 5 if spell['direction'] == 'right' else i * 5
+                    pygame.draw.circle(surface, magic_color, 
+                                    (int(spell_x + offset_x), int(spell_y)), 
+                                    5 - i)
         
         # Apply a "bobbing" effect based on animation frame
         bob_offset = math.sin(self.frame * 0.5) * 2
@@ -838,9 +554,8 @@ class Player:
                           (line_x - 1, beard_top + face_height//2), 
                           1)
     
-    def cast_attack(self, enemies):
-        """Cast a directed attack that auto-targets the closest enemy"""
-        if self.attack_cooldown <= 0:
+    def cast_spell(self):
+        if self.spell_cooldown <= 0:
             # Get magic color and power from customization, ensuring valid color format
             if 'magic_color' in self.customization and isinstance(self.customization['magic_color'], tuple):
                 magic_color = self.customization['magic_color'][:3]  # Ensure only RGB components
@@ -851,152 +566,46 @@ class Player:
             # Get magic power or use default
             magic_power = self.customization.get('magic_power', 1.0)
             
-            # Create attack from hand
+            # Create magic particles from hands
             hand_x = self.x + (self.width if self.facing_right else 0)
             hand_y = self.y + 20
-            player_center_x = self.x + self.width // 2
-            player_center_y = self.y + self.height // 2
             
-            # Create a larger, faster attack bolt
-            attack_width = 30
-            attack_height = 15
+            # Create magical particles
+            particle_count = int(20 * magic_power)
+            particle_speed = 4 * magic_power
+            particle_size = 3 * magic_power
             
-            # Only look for enemies if there are any
-            if enemies and len(enemies) > 0:
-                # Find the closest active enemy
-                closest_enemy = None
-                min_distance = float('inf')
-                
-                for enemy in enemies:
-                    if enemy.active and enemy.death_timer == 0:  # Only target active enemies not in death animation
-                        enemy_center_x = enemy.x + enemy.width // 2
-                        enemy_center_y = enemy.y + enemy.height // 2
-                        
-                        # Calculate distance to this enemy
-                        dx = enemy_center_x - player_center_x
-                        dy = enemy_center_y - player_center_y
-                        distance = math.sqrt(dx * dx + dy * dy)  # Actual distance for accuracy
-                        
-                        if distance < min_distance:
-                            min_distance = distance
-                            closest_enemy = enemy
-                
-                # If found a target, determine direction and adjust facing
-                if closest_enemy:
-                    # Get enemy center position
-                    enemy_center_x = closest_enemy.x + closest_enemy.width // 2
-                    enemy_center_y = closest_enemy.y + closest_enemy.height // 2
-                    
-                    # Determine direction to enemy
-                    to_right = enemy_center_x > player_center_x
-                    self.facing_right = to_right  # Update facing direction to face the enemy
-                    
-                    # Calculate angle to enemy for homing effect
-                    dx = enemy_center_x - player_center_x
-                    dy = enemy_center_y - player_center_y
-                    angle = math.atan2(dy, dx)
-                    
-                    # Print debugging info
-                    print(f"Targeting enemy at ({enemy_center_x}, {enemy_center_y}) from ({player_center_x}, {player_center_y})")
-                    print(f"Angle: {math.degrees(angle):.1f} degrees, Distance: {min_distance:.1f}")
-                    
-                    # Adjust start position to be in front of the player
-                    start_x = player_center_x + (15 if to_right else -15) - attack_width//2
-                    start_y = player_center_y - attack_height//2
-                    
-                    # Create attack object with homing info
-                    attack = {
-                        'x': start_x,
-                        'y': start_y,
-                        'width': attack_width,
-                        'height': attack_height,
-                        'rect': pygame.Rect(start_x, start_y, attack_width, attack_height),
-                        'speed': 10 * magic_power,  # Slightly slower for better tracking
-                        'direction': 'right' if to_right else 'left',
-                        'lifetime': 60,
-                        'color': magic_color,
-                        'power': magic_power,
-                        'homing': True,
-                        'target': closest_enemy,
-                        'angle': angle
-                    }
-                    
-                    # Check for immediate hit if enemy is very close
-                    if min_distance < 80:  # Close range instant hit
-                        closest_enemy.kill()
-                        
-                        # Create explosion at enemy position
-                        self.assets.create_particles(
-                            closest_enemy.rect.centerx,
-                            closest_enemy.rect.centery,
-                            magic_color,
-                            count=50,
-                            speed=6,
-                            size=5,
-                            lifetime=30
-                        )
-                        
-                        # Don't add the attack to the list if we already hit the enemy
-                        self.attack_cooldown = self.attack_cooldown_time
-                        return
-                else:
-                    # No target found, shoot in current facing direction
-                    print("No active enemies found to target")
-                    attack = self._create_standard_attack(player_center_x, player_center_y, hand_y, attack_width, attack_height, magic_color, magic_power)
-            else:
-                # No enemies at all, shoot in current facing direction
-                print("No enemies to target")
-                attack = self._create_standard_attack(player_center_x, player_center_y, hand_y, attack_width, attack_height, magic_color, magic_power)
-            
-            # Create initial burst particles
             self.assets.create_particles(
                 hand_x, 
                 hand_y, 
                 magic_color, 
-                count=int(30 * magic_power),
-                speed=5 * magic_power,
-                size=4 * magic_power,
-                lifetime=15
+                count=particle_count, 
+                speed=particle_speed, 
+                size=particle_size, 
+                lifetime=20
             )
             
-            self.attacks.append(attack)
-            self.attack_cooldown = self.attack_cooldown_time
+            # Create a spell with magical effect
+            magic_effect = self.assets.get_image('magic_effect')
+            
+            spell = {
+                'x': hand_x,
+                'y': hand_y,
+                'speed': 10 * magic_power,  # Faster without staff
+                'direction': 'left' if not self.facing_right else 'right',
+                'angle': 0,
+                'lifetime': 70,
+                'image': magic_effect,
+                'color': magic_color,
+                'power': magic_power
+            }
+            self.spells.append(spell)
+            self.spell_cooldown = self.spell_cooldown_time
     
-    def _create_standard_attack(self, player_center_x, player_center_y, hand_y, attack_width, attack_height, magic_color, magic_power):
-        """Helper method to create a standard non-homing attack"""
-        # Adjust start position to be in front of the player
-        start_x = player_center_x + (15 if self.facing_right else -15) - attack_width//2
-        start_y = hand_y - attack_height//2
-        
-        return {
-            'x': start_x,
-            'y': start_y,
-            'width': attack_width,
-            'height': attack_height,
-            'rect': pygame.Rect(start_x, start_y, attack_width, attack_height),
-            'speed': 15 * magic_power,
-            'direction': 'right' if self.facing_right else 'left',
-            'lifetime': 60,
-            'color': magic_color,
-            'power': magic_power,
-            'homing': False
-        }
-    
-    def take_damage(self, amount=20):
-        """Take damage from enemies"""
+    def take_damage(self, amount=10):
+        """Take damage and become temporarily invulnerable"""
         if not self.invulnerable:
-            self.health = max(0, self.health - amount)
+            self.health -= amount
             self.invulnerable = True
             self.invulnerable_timer = 60  # 1 second at 60 fps
-            self.damage_flash = 10  # Flash red for 10 frames
-            
-            # Create damage particles
-            self.assets.create_particles(
-                self.rect.centerx,
-                self.rect.centery,
-                (200, 50, 50),  # Red particles
-                count=30,
-                speed=4,
-                size=4,
-                lifetime=20
-            ) 
+            self.damage_flash = 5  # Flash for 5 frames 
